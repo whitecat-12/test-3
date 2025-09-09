@@ -3,181 +3,270 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Cable Drag</title>
+  <title>3D Cable Drag - Fixed</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
-      font-family: Arial, sans-serif;
-    }
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-size: 14px;
-      pointer-events: none;
     }
-    #cable-list {
+    
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+    
+    #info-panel {
       position: absolute;
-      top: 10px;
-      right: 10px;
+      top: 20px;
+      left: 20px;
       background: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-size: 14px;
-      max-width: 200px;
+      padding: 15px;
+      border-radius: 10px;
+      max-width: 300px;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
-    #cable-list h3 {
+    
+    #info-panel h1 {
       margin-top: 0;
+      color: #4ecca3;
+      font-size: 24px;
+      border-bottom: 2px solid #4ecca3;
+      padding-bottom: 8px;
+    }
+    
+    #instructions {
+      margin-top: 15px;
+      line-height: 1.6;
+    }
+    
+    #instructions li {
       margin-bottom: 8px;
     }
-    #cable-list ul {
+    
+    #cable-list {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      border-radius: 10px;
+      max-width: 200px;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    
+    #cable-list h2 {
+      margin-top: 0;
+      color: #4ecca3;
+      font-size: 18px;
+      border-bottom: 2px solid #4ecca3;
+      padding-bottom: 8px;
+    }
+    
+    #cables {
+      list-style-type: none;
+      padding: 0;
       margin: 0;
-      padding-left: 20px;
     }
-    #cable-list li {
+    
+    #cables li {
+      padding: 8px;
+      margin: 5px 0;
+      background: rgba(78, 204, 163, 0.2);
+      border-radius: 5px;
       cursor: pointer;
-      margin-bottom: 4px;
+      transition: background 0.3s;
     }
-    #cable-list li:hover {
-      color: #ff9900;
+    
+    #cables li:hover {
+      background: rgba(78, 204, 163, 0.4);
+    }
+    
+    #status {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 20px;
+      border-radius: 20px;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: none;
+    }
+    
+    canvas {
+      display: block;
+    }
+    
+    .highlight {
+      color: #4ecca3;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <div id="info">
-    Klik dan tahan pada kotak, lalu tarik ke kotak lain untuk membuat kabel.
-    <br>Klik kanan pada kabel untuk menghapusnya.
-  </div>
-  <div id="cable-list">
-    <h3>Kabel Terpasang</h3>
-    <ul id="cables"></ul>
+  <div id="container">
+    <div id="info-panel">
+      <h1>3D Cable Dragger</h1>
+      <div id="instructions">
+        <p>Create cables between boxes by dragging from one to another.</p>
+        <ul>
+          <li>👉 <span class="highlight">Left-click</span> on a box and drag to another</li>
+          <li>👉 <span class="highlight">Right-click</span> on a cable to delete it</li>
+          <li>👉 <span class="highlight">Orbit</span> around by dragging the mouse</li>
+          <li>👉 <span class="highlight">Zoom</span> with the mouse wheel</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div id="cable-list">
+      <h2>Connected Cables</h2>
+      <ul id="cables">
+        <li>No cables yet</li>
+      </ul>
+    </div>
+    
+    <div id="status">Cable created successfully!</div>
   </div>
 
-  <script type="module">
-    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
-    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js";
+  <!-- Load Three.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 
-    // --- Setup dasar
+  <script>
+    // Inisialisasi Three.js
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xcccccc);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({antialias:true});
+    scene.background = new THREE.Color(0x1a1a2e);
+    
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    document.body.appendChild(renderer.domElement);
+    document.getElementById('container').appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
+    // Kontrol orbit
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
 
-    // Cahaya
+    // Pencahayaan
     const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
     scene.add(ambientLight);
     
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 10, 7.5);
     directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 1024;
-    directionalLight.shadow.mapSize.height = 1024;
     scene.add(directionalLight);
 
-    // Grid helper
-    const gridHelper = new THREE.GridHelper(20, 20);
+    // Helper grid
+    const gridHelper = new THREE.GridHelper(20, 20, 0x000000, 0x000000);
+    gridHelper.material.opacity = 0.2;
+    gridHelper.material.transparent = true;
     scene.add(gridHelper);
 
-    // --- Komponen (box)
+    // Fungsi pembuat box
     function makeBox(x, y, z, color, name) {
-      const geo = new THREE.BoxGeometry(1,1,1);
-      const mat = new THREE.MeshStandardMaterial({color});
+      const geo = new THREE.BoxGeometry(1, 1, 1);
+      const mat = new THREE.MeshStandardMaterial({ color });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(x,y,z);
+      mesh.position.set(x, y, z);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.name = name;
       scene.add(mesh);
       return mesh;
     }
-    
-    const boxA = makeBox(-2,0.5,0,0xff0000, "Box A");
-    const boxB = makeBox(2,0.5,0,0x0000ff, "Box B");
 
-    // Menyimpan kabel yang dibuat
+    // Membuat box
+    const boxA = makeBox(-2, 0.5, 0, 0xff0000, "Box A");
+    const boxB = makeBox(2, 0.5, 0, 0x0000ff, "Box B");
+    const boxC = makeBox(0, 0.5, -2, 0x00ff00, "Box C");
+
+    // Menyimpan kabel
     const cables = [];
     let cableCounter = 1;
 
-    // --- Raycaster utk detect klik
+    // Raycaster untuk interaksi
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     let dragging = false, startPos = null, tempCable = null, startBox = null;
 
-    function onMouseDown(e){
+    // Fungsi event mouse
+    function onMouseDown(e) {
+      e.preventDefault();
+      
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      
       raycaster.setFromCamera(mouse, camera);
       
-      // Periksa apakah mengeklik kabel untuk dihapus (klik kanan)
-      if (e.button === 2) { // Klik kanan
-        const hits = raycaster.intersectObjects(cables, true);
+      // Deteksi klik kanan untuk menghapus kabel
+      if (e.button === 2) {
+        const hits = raycaster.intersectObjects(cables);
         if (hits.length > 0) {
           const cableToRemove = hits[0].object;
           scene.remove(cableToRemove);
           
-          // Hapus dari array cables
           const index = cables.indexOf(cableToRemove);
           if (index > -1) {
             cables.splice(index, 1);
           }
           
-          // Perbarui UI
           updateCableList();
+          showStatus("Cable removed");
           return;
         }
       }
       
-      // Deteksi klik pada kotak
-      const hits = raycaster.intersectObjects([boxA, boxB]);
-      if(hits.length > 0){
+      // Deteksi klik kiri pada box
+      const hits = raycaster.intersectObjects([boxA, boxB, boxC]);
+      if (hits.length > 0) {
         dragging = true;
         startPos = hits[0].point.clone();
         startBox = hits[0].object;
         
-        // Berikan visual feedback
+        // Visual feedback
         startBox.material.emissive.set(0x444444);
         startBox.material.needsUpdate = true;
       }
     }
 
-    function onMouseMove(e){
-      if(!dragging) return;
+    function onMouseMove(e) {
+      if (!dragging) return;
+      
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      
       raycaster.setFromCamera(mouse, camera);
       
-      // Gunakan bidang pada ketinggian startPos, bukan selalu z=0
+      // Gunakan bidang pada ketinggian startPos
       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -startPos.y);
       const point = new THREE.Vector3();
       raycaster.ray.intersectPlane(plane, point);
 
-      // Hapus kabel sementara jika ada
-      if(tempCable) scene.remove(tempCable);
+      // Hapus kabel sementara
+      if (tempCable) scene.remove(tempCable);
 
       // Buat kabel sementara
       const curve = new THREE.CatmullRomCurve3([startPos, point]);
       const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
-      const mat = new THREE.MeshStandardMaterial({color: 0xffff00});
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
       tempCable = new THREE.Mesh(geo, mat);
       scene.add(tempCable);
     }
 
-    function onMouseUp(e){
-      if(!dragging) return;
+    function onMouseUp(e) {
+      if (!dragging) return;
       
-      // Kembalikan emissive material ke normal
+      // Kembalikan material ke normal
       if (startBox) {
         startBox.material.emissive.set(0x000000);
         startBox.material.needsUpdate = true;
@@ -185,33 +274,34 @@
       
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      
       raycaster.setFromCamera(mouse, camera);
       
-      const hits = raycaster.intersectObjects([boxA, boxB]);
-      if(hits.length > 0 && hits[0].object !== startBox){
+      const hits = raycaster.intersectObjects([boxA, boxB, boxC]);
+      if (hits.length > 0 && hits[0].object !== startBox) {
         const endPos = hits[0].point.clone();
         const endBox = hits[0].object;
 
         // Hapus kabel sementara
-        if(tempCable) scene.remove(tempCable);
+        if (tempCable) scene.remove(tempCable);
 
         // Buat kabel permanen
         const curve = new THREE.CatmullRomCurve3([startPos, endPos]);
         const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
-        const mat = new THREE.MeshStandardMaterial({color: 0x00ff00});
+        const mat = new THREE.MeshStandardMaterial({ color: 0x4ecca3 });
         const cable = new THREE.Mesh(geo, mat);
-        cable.name = `Cable ${cableCounter}`;
+        cable.name = `Cable ${cableCounter} (${startBox.name} to ${endBox.name})`;
         cable.castShadow = true;
         scene.add(cable);
         
-        // Simpan kabel ke array
+        // Simpan kabel
         cables.push(cable);
         cableCounter++;
         
-        // Perbarui UI
         updateCableList();
+        showStatus("Cable created successfully!");
       } else if (tempCable) {
-        // Hapus kabel sementara jika tidak terhubung ke kotak
+        // Hapus kabel sementara jika tidak terhubung
         scene.remove(tempCable);
       }
       
@@ -224,6 +314,11 @@
       const cableList = document.getElementById('cables');
       cableList.innerHTML = '';
       
+      if (cables.length === 0) {
+        cableList.innerHTML = '<li>No cables yet</li>';
+        return;
+      }
+      
       cables.forEach((cable, index) => {
         const li = document.createElement('li');
         li.textContent = cable.name;
@@ -231,16 +326,27 @@
           scene.remove(cable);
           cables.splice(index, 1);
           updateCableList();
+          showStatus("Cable removed");
         };
         cableList.appendChild(li);
       });
+    }
+
+    function showStatus(message) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.style.display = 'block';
+      
+      setTimeout(() => {
+        status.style.display = 'none';
+      }, 2000);
     }
 
     // Event listeners
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-    window.addEventListener('contextmenu', (e) => e.preventDefault()); // Blokir menu konteks
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
 
     // Penanganan resize
     window.addEventListener('resize', () => {
@@ -249,16 +355,19 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Kamera
-    camera.position.set(0, 3, 6);
+    // Posisi kamera
+    camera.position.set(0, 5, 10);
     controls.update();
 
-    // Loop render
-    (function animate(){
+    // Animasi
+    function animate() {
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
-    })();
+    }
+    
+    animate();
+    updateCableList();
   </script>
 </body>
 </html>
