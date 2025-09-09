@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Cable Drag</title>
+  <style>body{margin:0;}</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+  // --- Setup dasar
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  // Cahaya
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(5,5,5);
+  scene.add(light, new THREE.AmbientLight(0x404040));
+
+  // --- Komponen (box)
+  function makeBox(x, y, z, color) {
+    const geo = new THREE.BoxGeometry(1,1,1);
+    const mat = new THREE.MeshStandardMaterial({color});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x,y,z);
+    scene.add(mesh);
+    return mesh;
+  }
+  const boxA = makeBox(-2,0,0,0xff0000);
+  const boxB = makeBox( 2,0,0,0x0000ff);
+
+  // --- Raycaster utk detect klik
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let dragging = false, startPos = null, tempCable = null;
+
+  function onMouseDown(e){
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects([boxA, boxB]);
+    if(hits.length > 0){
+      dragging = true;
+      startPos = hits[0].point.clone();
+    }
+  }
+
+  function onMouseMove(e){
+    if(!dragging) return;
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const planeZ = new THREE.Plane(new THREE.Vector3(0,0,1), 0);
+    const point = new THREE.Vector3();
+    raycaster.ray.intersectPlane(planeZ, point);
+
+    // hapus kabel sementara
+    if(tempCable) scene.remove(tempCable);
+
+    // bikin kabel sementara
+    const curve = new THREE.CatmullRomCurve3([startPos, point]);
+    const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
+    const mat = new THREE.MeshStandardMaterial({color:0x000000});
+    tempCable = new THREE.Mesh(geo, mat);
+    scene.add(tempCable);
+  }
+
+  function onMouseUp(e){
+    if(!dragging) return;
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects([boxA, boxB]);
+    if(hits.length > 0){
+      const endPos = hits[0].point.clone();
+
+      // Hapus kabel sementara
+      if(tempCable) scene.remove(tempCable);
+
+      // Kabel permanen
+      const curve = new THREE.CatmullRomCurve3([startPos, endPos]);
+      const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
+      const mat = new THREE.MeshStandardMaterial({color:0x000000});
+      const cable = new THREE.Mesh(geo, mat);
+      scene.add(cable);
+    }
+    dragging = false;
+    tempCable = null;
+  }
+
+  window.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+
+  // Kamera
+  camera.position.set(0,3,6);
+
+  // Loop render
+  (function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  })();
+</script>
+</body>
+</html>
