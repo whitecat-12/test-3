@@ -30,6 +30,7 @@
       backdrop-filter: blur(5px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      z-index: 10;
     }
     
     #info-panel h1 {
@@ -60,6 +61,7 @@
       backdrop-filter: blur(5px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      z-index: 10;
     }
     
     #cable-list h2 {
@@ -100,6 +102,7 @@
       backdrop-filter: blur(5px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       display: none;
+      z-index: 10;
     }
     
     canvas {
@@ -110,9 +113,39 @@
       color: #4ecca3;
       font-weight: bold;
     }
+    
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #4ecca3;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+  <div id="loading">
+    <div class="spinner"></div>
+  </div>
+
   <div id="container">
     <div id="info-panel">
       <h1>3D Cable Dragger</h1>
@@ -137,11 +170,11 @@
     <div id="status">Cable created successfully!</div>
   </div>
 
-  <!-- Load Three.js from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+  <script type="module">
+    // Import Three.js menggunakan ES Modules
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 
-  <script>
     // Inisialisasi Three.js
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
@@ -153,7 +186,7 @@
     document.getElementById('container').appendChild(renderer.domElement);
 
     // Kontrol orbit
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
 
@@ -366,8 +399,12 @@
       renderer.render(scene, camera);
     }
     
-    animate();
-    updateCableList();
+    // Sembunyikan loading screen setelah semua dimuat
+    window.addEventListener('load', () => {
+      document.getElementById('loading').style.display = 'none';
+      animate();
+      updateCableList();
+    });
   </script>
 </body>
 </html>
