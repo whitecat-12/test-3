@@ -2,112 +2,263 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D Cable Drag</title>
-  <style>body{margin:0;}</style>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+      pointer-events: none;
+    }
+    #cable-list {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+      max-width: 200px;
+    }
+    #cable-list h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+    #cable-list ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    #cable-list li {
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+    #cable-list li:hover {
+      color: #ff9900;
+    }
+  </style>
 </head>
 <body>
-<script type="module">
-  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
-  import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js';
-  import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
+  <div id="info">
+    Klik dan tahan pada kotak, lalu tarik ke kotak lain untuk membuat kabel.
+    <br>Klik kanan pada kabel untuk menghapusnya.
+  </div>
+  <div id="cable-list">
+    <h3>Kabel Terpasang</h3>
+    <ul id="cables"></ul>
+  </div>
 
-  // --- Setup dasar
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({antialias:true});
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js";
 
-  const controls = new OrbitControls(camera, renderer.domElement);
+    // --- Setup dasar
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcccccc);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
 
-  // Cahaya
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5,5,5);
-  scene.add(light, new THREE.AmbientLight(0x404040));
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
 
-  // --- Komponen (box)
-  function makeBox(x, y, z, color) {
-    const geo = new THREE.BoxGeometry(1,1,1);
-    const mat = new THREE.MeshStandardMaterial({color});
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x,y,z);
-    scene.add(mesh);
-    return mesh;
-  }
-  const boxA = makeBox(-2,0,0,0xff0000);
-  const boxB = makeBox( 2,0,0,0x0000ff);
+    // Cahaya
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+    scene.add(directionalLight);
 
-  // --- Raycaster utk detect klik
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  let dragging = false, startPos = null, tempCable = null;
+    // Grid helper
+    const gridHelper = new THREE.GridHelper(20, 20);
+    scene.add(gridHelper);
 
-  function onMouseDown(e){
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects([boxA, boxB]);
-    if(hits.length > 0){
-      dragging = true;
-      startPos = hits[0].point.clone();
+    // --- Komponen (box)
+    function makeBox(x, y, z, color, name) {
+      const geo = new THREE.BoxGeometry(1,1,1);
+      const mat = new THREE.MeshStandardMaterial({color});
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x,y,z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.name = name;
+      scene.add(mesh);
+      return mesh;
     }
-  }
+    
+    const boxA = makeBox(-2,0.5,0,0xff0000, "Box A");
+    const boxB = makeBox(2,0.5,0,0x0000ff, "Box B");
 
-  function onMouseMove(e){
-    if(!dragging) return;
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const planeZ = new THREE.Plane(new THREE.Vector3(0,0,1), 0);
-    const point = new THREE.Vector3();
-    raycaster.ray.intersectPlane(planeZ, point);
+    // Menyimpan kabel yang dibuat
+    const cables = [];
+    let cableCounter = 1;
 
-    // hapus kabel sementara
-    if(tempCable) scene.remove(tempCable);
+    // --- Raycaster utk detect klik
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let dragging = false, startPos = null, tempCable = null, startBox = null;
 
-    // bikin kabel sementara
-    const curve = new THREE.CatmullRomCurve3([startPos, point]);
-    const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
-    const mat = new THREE.MeshStandardMaterial({color:0x000000});
-    tempCable = new THREE.Mesh(geo, mat);
-    scene.add(tempCable);
-  }
+    function onMouseDown(e){
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Periksa apakah mengeklik kabel untuk dihapus (klik kanan)
+      if (e.button === 2) { // Klik kanan
+        const hits = raycaster.intersectObjects(cables, true);
+        if (hits.length > 0) {
+          const cableToRemove = hits[0].object;
+          scene.remove(cableToRemove);
+          
+          // Hapus dari array cables
+          const index = cables.indexOf(cableToRemove);
+          if (index > -1) {
+            cables.splice(index, 1);
+          }
+          
+          // Perbarui UI
+          updateCableList();
+          return;
+        }
+      }
+      
+      // Deteksi klik pada kotak
+      const hits = raycaster.intersectObjects([boxA, boxB]);
+      if(hits.length > 0){
+        dragging = true;
+        startPos = hits[0].point.clone();
+        startBox = hits[0].object;
+        
+        // Berikan visual feedback
+        startBox.material.emissive.set(0x444444);
+        startBox.material.needsUpdate = true;
+      }
+    }
 
-  function onMouseUp(e){
-    if(!dragging) return;
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects([boxA, boxB]);
-    if(hits.length > 0){
-      const endPos = hits[0].point.clone();
+    function onMouseMove(e){
+      if(!dragging) return;
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Gunakan bidang pada ketinggian startPos, bukan selalu z=0
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -startPos.y);
+      const point = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, point);
 
-      // Hapus kabel sementara
+      // Hapus kabel sementara jika ada
       if(tempCable) scene.remove(tempCable);
 
-      // Kabel permanen
-      const curve = new THREE.CatmullRomCurve3([startPos, endPos]);
+      // Buat kabel sementara
+      const curve = new THREE.CatmullRomCurve3([startPos, point]);
       const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
-      const mat = new THREE.MeshStandardMaterial({color:0x000000});
-      const cable = new THREE.Mesh(geo, mat);
-      scene.add(cable);
+      const mat = new THREE.MeshStandardMaterial({color: 0xffff00});
+      tempCable = new THREE.Mesh(geo, mat);
+      scene.add(tempCable);
     }
-    dragging = false;
-    tempCable = null;
-  }
 
-  window.addEventListener('mousedown', onMouseDown);
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
+    function onMouseUp(e){
+      if(!dragging) return;
+      
+      // Kembalikan emissive material ke normal
+      if (startBox) {
+        startBox.material.emissive.set(0x000000);
+        startBox.material.needsUpdate = true;
+      }
+      
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      
+      const hits = raycaster.intersectObjects([boxA, boxB]);
+      if(hits.length > 0 && hits[0].object !== startBox){
+        const endPos = hits[0].point.clone();
+        const endBox = hits[0].object;
 
-  // Kamera
-  camera.position.set(0,3,6);
+        // Hapus kabel sementara
+        if(tempCable) scene.remove(tempCable);
 
-  // Loop render
-  (function animate(){
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
-  })();
-</script>
+        // Buat kabel permanen
+        const curve = new THREE.CatmullRomCurve3([startPos, endPos]);
+        const geo = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
+        const mat = new THREE.MeshStandardMaterial({color: 0x00ff00});
+        const cable = new THREE.Mesh(geo, mat);
+        cable.name = `Cable ${cableCounter}`;
+        cable.castShadow = true;
+        scene.add(cable);
+        
+        // Simpan kabel ke array
+        cables.push(cable);
+        cableCounter++;
+        
+        // Perbarui UI
+        updateCableList();
+      } else if (tempCable) {
+        // Hapus kabel sementara jika tidak terhubung ke kotak
+        scene.remove(tempCable);
+      }
+      
+      dragging = false;
+      tempCable = null;
+      startBox = null;
+    }
+
+    function updateCableList() {
+      const cableList = document.getElementById('cables');
+      cableList.innerHTML = '';
+      
+      cables.forEach((cable, index) => {
+        const li = document.createElement('li');
+        li.textContent = cable.name;
+        li.onclick = () => {
+          scene.remove(cable);
+          cables.splice(index, 1);
+          updateCableList();
+        };
+        cableList.appendChild(li);
+      });
+    }
+
+    // Event listeners
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('contextmenu', (e) => e.preventDefault()); // Blokir menu konteks
+
+    // Penanganan resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Kamera
+    camera.position.set(0, 3, 6);
+    controls.update();
+
+    // Loop render
+    (function animate(){
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+  </script>
 </body>
 </html>
